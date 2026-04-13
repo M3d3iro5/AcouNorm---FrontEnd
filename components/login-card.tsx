@@ -1,52 +1,88 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Spinner } from '@/components/ui/spinner'
-import { AlertCircle, Eye, EyeOff } from 'lucide-react'
-import { useAuth } from '@/lib/auth-context'
-import { cn } from '@/lib/utils'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Spinner } from "@/components/ui/spinner";
+import { AlertCircle, Eye, EyeOff } from "lucide-react";
+import { SocialLoginGrid } from "@/components/oauth-buttons";
+import { useAuth } from "@/lib/auth-context";
+import { cn } from "@/lib/utils";
 
 export function LoginCard() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
-  const [error, setError] = useState('')
-  const { login, isLoading } = useAuth()
-  const router = useRouter()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { setUser } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+    e.preventDefault();
+    setError("");
 
     if (!email) {
-      setError('Informe o e-mail')
-      return
+      setError("Informe o e-mail");
+      return;
     }
 
     if (!password) {
-      setError('Informe a senha')
-      return
+      setError("Informe a senha");
+      return;
     }
 
     if (password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres')
-      return
+      setError("A senha deve ter pelo menos 6 caracteres");
+      return;
     }
 
-    const success = await login(email, password)
-    if (success) {
-      router.push('/dashboard')
-    } else {
-      setError('Credenciais inválidas. Verifique e tente novamente.')
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || "Credenciais inválidas");
+        return;
+      }
+
+      const data = await response.json();
+
+      // Salvar token e usuário
+      if (data.token) {
+        localStorage.setItem("auth_token", data.token);
+      }
+      if (data.user) {
+        localStorage.setItem("auth_user", JSON.stringify(data.user));
+        setUser(data.user);
+      }
+
+      // Redirecionar para dashboard
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("Erro ao fazer login. Tente novamente mais tarde.");
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Card className="w-full max-w-md bg-card/80 backdrop-blur-sm border-border/50 shadow-2xl">
@@ -62,13 +98,15 @@ export function LoginCard() {
                   i === 2 && "h-5",
                   i === 3 && "h-7",
                   i === 4 && "h-5",
-                  i === 5 && "h-3"
+                  i === 5 && "h-3",
                 )}
                 style={{ animationDelay: `${i * 0.1}s` }}
               />
             ))}
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">AcouNorm</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight">
+            AcouNorm
+          </CardTitle>
         </div>
         <CardDescription className="text-center text-muted-foreground">
           Análise de Isolamento Acústico
@@ -105,7 +143,7 @@ export function LoginCard() {
             <div className="relative">
               <Input
                 id="password"
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword ? "text" : "password"}
                 placeholder="Sua senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -118,7 +156,11 @@ export function LoginCard() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 tabIndex={-1}
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
               </button>
             </div>
           </div>
@@ -131,17 +173,19 @@ export function LoginCard() {
                 onCheckedChange={(checked) => setRememberMe(checked === true)}
                 disabled={isLoading}
               />
-              <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
+              <Label
+                htmlFor="remember"
+                className="text-sm text-muted-foreground cursor-pointer"
+              >
                 Lembrar-me
               </Label>
             </div>
-            <button
-              type="button"
+            <Link
+              href="/auth/forgot-password"
               className="text-sm text-primary hover:text-primary/80 transition-colors"
-              onClick={() => alert('Funcionalidade de recuperação de senha será implementada com o backend.')}
             >
               Esqueci minha senha
-            </button>
+            </Link>
           </div>
 
           <Button
@@ -155,9 +199,24 @@ export function LoginCard() {
                 Entrando...
               </span>
             ) : (
-              'Entrar'
+              "Entrar"
             )}
           </Button>
+
+          {/* Social Login - OAuth */}
+          <SocialLoginGrid />
+
+          <div className="pt-2 border-t border-border/50">
+            <p className="text-sm text-center text-muted-foreground">
+              Não tem uma conta?{" "}
+              <Link
+                href="/auth/register"
+                className="text-primary hover:underline font-medium"
+              >
+                Criar conta
+              </Link>
+            </p>
+          </div>
 
           <p className="text-xs text-center text-muted-foreground pt-2">
             Sistema para uso profissional de engenheiros e consultores acústicos
@@ -165,5 +224,5 @@ export function LoginCard() {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }

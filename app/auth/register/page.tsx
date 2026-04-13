@@ -1,0 +1,33 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { RegistrationCard } from "@/components/registration-card";
+import { AcousticBackground } from "@/components/acoustic-background";
+import { useAuth } from "@/lib/auth-context";
+
+export default function RegisterPage() {
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, router]);
+
+  return (
+    <main className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      <AcousticBackground />
+
+      {/* Gradient overlays */}
+      <div className="fixed inset-0 bg-gradient-to-br from-background via-background/95 to-primary/10 pointer-events-none" />
+      <div className="fixed inset-0 bg-gradient-to-t from-background via-transparent to-transparent pointer-events-none" />
+
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-md">
+        <RegistrationCard />
+      </div>
+    </main>
+  );
+}

@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   LineChart,
   Line,
@@ -10,30 +10,31 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-} from 'recharts'
-import { FrequencyData } from '@/lib/types'
+} from "recharts";
+import { FrequencyData } from "@/lib/types";
 
 interface ResultChartCardProps {
-  title: string
-  data: FrequencyData[]
-  yLabel?: string
-  referenceLine?: number
+  title: string;
+  data: FrequencyData[];
+  yLabel?: string;
+  referenceLine?: number;
 }
 
 export function ResultChartCard({
   title,
   data,
-  yLabel = 'dB',
+  yLabel = "dB",
   referenceLine,
 }: ResultChartCardProps) {
-  const chartData = data.map(d => ({
+  const chartData = data.map((d) => ({
     frequency: d.frequency,
     value: d.value,
-    label: d.frequency >= 1000 ? `${d.frequency / 1000}k` : d.frequency.toString(),
-  }))
+    label:
+      d.frequency >= 1000 ? `${d.frequency / 1000}k` : d.frequency.toString(),
+  }));
 
-  const minValue = Math.min(...data.map(d => d.value)) - 5
-  const maxValue = Math.max(...data.map(d => d.value)) + 5
+  const minValue = Math.min(...data.map((d) => d.value)) - 5;
+  const maxValue = Math.max(...data.map((d) => d.value)) + 5;
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-border">
@@ -41,78 +42,91 @@ export function ResultChartCard({
         <CardTitle className="text-base font-medium">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px] w-full">
+        <div className="h-[400px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartData}
-              margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+              margin={{ top: 20, right: 30, left: 50, bottom: 50 }}
             >
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="hsl(var(--border))"
-                opacity={0.5}
+                stroke="#4a5568"
+                opacity={0.8}
               />
               <XAxis
                 dataKey="label"
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickLine={{ stroke: 'hsl(var(--border))' }}
+                tick={{ fill: "#cbd5e0", fontSize: 12, fontWeight: 500 }}
+                axisLine={{ stroke: "#4a5568" }}
+                tickLine={{ stroke: "#4a5568" }}
                 label={{
-                  value: 'Frequência (Hz)',
-                  position: 'bottom',
-                  offset: 0,
-                  fill: 'hsl(var(--muted-foreground))',
-                  fontSize: 11,
+                  value: "Frequência (Hz)",
+                  position: "bottom",
+                  offset: 15,
+                  fill: "#cbd5e0",
+                  fontSize: 13,
+                  fontWeight: 600,
                 }}
               />
               <YAxis
                 domain={[minValue, maxValue]}
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickLine={{ stroke: 'hsl(var(--border))' }}
+                type="number"
+                tick={{ fill: "#cbd5e0", fontSize: 12, fontWeight: 500 }}
+                axisLine={{ stroke: "#4a5568" }}
+                tickLine={{ stroke: "#4a5568" }}
+                tickFormatter={(value) => {
+                  if (Math.abs(value) >= 1000) {
+                    return (value / 1000).toFixed(0) + "k";
+                  }
+                  return value.toFixed(0);
+                }}
                 label={{
                   value: yLabel,
                   angle: -90,
-                  position: 'insideLeft',
+                  position: "left",
                   offset: 10,
-                  fill: 'hsl(var(--muted-foreground))',
-                  fontSize: 11,
+                  fill: "#cbd5e0",
+                  fontSize: 13,
+                  fontWeight: 600,
                 }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '6px',
-                  color: 'hsl(var(--popover-foreground))',
+                  backgroundColor: "#1a202c",
+                  border: "2px solid #3182ce",
+                  borderRadius: "8px",
+                  color: "#e2e8f0",
                 }}
-                labelStyle={{ color: 'hsl(var(--muted-foreground))' }}
-                formatter={(value: number) => [`${value.toFixed(1)} ${yLabel}`, 'Valor']}
+                labelStyle={{ color: "#90cdf4", fontWeight: 600 }}
+                formatter={(value: number) => [
+                  `${value.toFixed(1)} ${yLabel}`,
+                  "Valor",
+                ]}
                 labelFormatter={(label) => `${label} Hz`}
               />
               {referenceLine && (
                 <ReferenceLine
                   y={referenceLine}
-                  stroke="hsl(var(--destructive))"
+                  stroke="#f56565"
                   strokeDasharray="5 5"
-                  strokeWidth={1}
+                  strokeWidth={2}
                 />
               )}
               <Line
                 type="monotone"
                 dataKey="value"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2}
+                stroke="#00d4ff"
+                strokeWidth={3}
                 dot={{
-                  fill: 'hsl(var(--primary))',
-                  strokeWidth: 0,
-                  r: 3,
+                  fill: "#00d4ff",
+                  strokeWidth: 2,
+                  stroke: "#0a1428",
+                  r: 4,
                 }}
                 activeDot={{
-                  fill: 'hsl(var(--primary))',
+                  fill: "#00ff00",
                   strokeWidth: 2,
-                  stroke: 'hsl(var(--background))',
-                  r: 5,
+                  stroke: "#1a202c",
+                  r: 6,
                 }}
               />
             </LineChart>
@@ -123,5 +137,5 @@ export function ResultChartCard({
         </p>
       </CardContent>
     </Card>
-  )
+  );
 }

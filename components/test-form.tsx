@@ -1,163 +1,242 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
-import { Spinner } from '@/components/ui/spinner'
-import { FormSection } from '@/components/form-section'
-import { NumericInputWithUnit } from '@/components/numeric-input-with-unit'
-import { ToggleInputMode } from '@/components/toggle-input-mode'
-import { FrequencyBandTable } from '@/components/frequency-band-table'
-import { HelpPanel } from '@/components/help-panel'
-import { Save, Calculator, RotateCcw, AlertCircle, CheckCircle } from 'lucide-react'
-import { TestType, InputMode, FrequencyData, FREQUENCY_BANDS, TEST_TYPES } from '@/lib/types'
-import { mockCalculate } from '@/lib/mock-data'
-import { cn } from '@/lib/utils'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Spinner } from "@/components/ui/spinner";
+import { FormSection } from "@/components/form-section";
+import { NumericInputWithUnit } from "@/components/numeric-input-with-unit";
+import { FrequencyBandTable } from "@/components/frequency-band-table";
+import { HelpPanel } from "@/components/help-panel";
+import {
+  Save,
+  Calculator,
+  RotateCcw,
+  AlertCircle,
+  CheckCircle,
+  Zap,
+} from "lucide-react";
+import {
+  TestType,
+  FrequencyData,
+  FREQUENCY_BANDS,
+  TEST_TYPES,
+} from "@/lib/types";
+import {
+  calculateAcoustic,
+  extractMainMetrics,
+  ApiResponse,
+} from "@/lib/api-service";
+import { cn } from "@/lib/utils";
 
 interface TestFormProps {
-  testType: TestType
-  onCalculated: () => void
+  testType: TestType;
+  onCalculated: () => void;
 }
 
 interface FormState {
   // Dados do ensaio
-  projectName: string
-  testCode: string
-  date: string
-  observations: string
+  projectName: string;
+  testCode: string;
+  date: string;
+  observations: string;
   // Geometria
-  partitionArea: number | null
-  receptionVolume: number | null
-  roomAbsorption: number | null
-  tr60: number | null
-  useAbsorption: boolean
+  partitionArea: number | null;
+  receptionVolume: number | null;
+  roomAbsorption: number | null;
+  useAbsorption: boolean;
   // Medições
-  inputMode: InputMode
-  npsSimple1: number | null
-  npsSimple2: number | null
-  npsBands1: FrequencyData[]
-  npsBands2: FrequencyData[]
+  npsBands1: FrequencyData[];
+  npsBands2: FrequencyData[];
+  tr60Bands: FrequencyData[];
 }
 
 const initialState: FormState = {
-  projectName: '',
-  testCode: '',
-  date: new Date().toISOString().split('T')[0],
-  observations: '',
+  projectName: "",
+  testCode: "",
+  date: new Date().toISOString().split("T")[0],
+  observations: "",
   partitionArea: null,
   receptionVolume: null,
   roomAbsorption: null,
-  tr60: null,
   useAbsorption: false,
-  inputMode: 'simple',
-  npsSimple1: null,
-  npsSimple2: null,
-  npsBands1: FREQUENCY_BANDS.map(f => ({ frequency: f, value: 0 })),
-  npsBands2: FREQUENCY_BANDS.map(f => ({ frequency: f, value: 0 })),
-}
+  npsBands1: FREQUENCY_BANDS.map((f) => ({ frequency: f, value: 0 })),
+  npsBands2: FREQUENCY_BANDS.map((f) => ({ frequency: f, value: 0 })),
+  tr60Bands: FREQUENCY_BANDS.map((f) => ({ frequency: f, value: 0 })),
+};
 
 export function TestForm({ testType, onCalculated }: TestFormProps) {
-  const [form, setForm] = useState<FormState>(initialState)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isCalculating, setIsCalculating] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const router = useRouter()
+  const [form, setForm] = useState<FormState>(initialState);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [calculationError, setCalculationError] = useState<string | null>(null);
+  const [apiResponse, setApiResponse] = useState<ApiResponse | null>(null);
+  const router = useRouter();
 
-  const config = TEST_TYPES.find(t => t.id === testType)
+  const config = TEST_TYPES.find((t) => t.id === testType);
 
-  const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
-    setForm(prev => ({ ...prev, [key]: value }))
+  const updateForm = <K extends keyof FormState>(
+    key: K,
+    value: FormState[K],
+  ) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
     if (errors[key]) {
-      setErrors(prev => ({ ...prev, [key]: '' }))
+      setErrors((prev) => ({ ...prev, [key]: "" }));
     }
-    setSaved(false)
-  }
+    setSaved(false);
+    setCalculationError(null);
+  };
 
   const validate = (): boolean => {
-    const newErrors: Record<string, string> = {}
+    const newErrors: Record<string, string> = {};
 
     if (!form.projectName.trim()) {
-      newErrors.projectName = 'Nome do projeto é obrigatório'
+      newErrors.projectName = "Nome do projeto é obrigatório";
     }
 
     if (!form.testCode.trim()) {
-      newErrors.testCode = 'Código do ensaio é obrigatório'
+      newErrors.testCode = "Código do ensaio é obrigatório";
     }
 
     if (form.receptionVolume === null || form.receptionVolume <= 0) {
-      newErrors.receptionVolume = 'Volume da sala de recepção é obrigatório'
+      newErrors.receptionVolume = "Volume da sala de recepção é obrigatório";
     }
 
-    if (testType !== 'impacto_laje' && (form.partitionArea === null || form.partitionArea <= 0)) {
-      newErrors.partitionArea = 'Área da partição é obrigatória'
+    if (
+      testType !== "impacto_laje" &&
+      (form.partitionArea === null || form.partitionArea <= 0)
+    ) {
+      newErrors.partitionArea = "Área da partição é obrigatória";
     }
 
-    if ((form.roomAbsorption === null || form.roomAbsorption <= 0) && 
-        (form.tr60 === null || form.tr60 <= 0)) {
-      newErrors.absorption = 'Informe a absorção do recinto ou o TR60'
+    if (
+      (form.roomAbsorption === null || form.roomAbsorption <= 0) &&
+      form.tr60Bands.some((b) => b.value > 0) === false
+    ) {
+      newErrors.absorption = "Informe a absorção do recinto ou o TR60";
     }
 
-    // Validação de NPS conforme tipo de ensaio
-    if (form.inputMode === 'simple') {
-      if (testType !== 'impacto_laje') {
-        if (form.npsSimple1 === null) {
-          newErrors.npsSimple1 = 'NPS da sala fonte é obrigatório'
-        }
+    // Validação de NPS por bandas - deve ter valores válidos (20-100 dB)
+    if (testType !== "impacto_laje") {
+      const validSourceValues = form.npsBands1.filter(
+        (b) => b.value > 0 && b.value >= 20 && b.value <= 100,
+      );
+      const hasValidSourceValues = validSourceValues.length >= 5; // Pelo menos 5/8 bandas preenchidas
+
+      if (!hasValidSourceValues) {
+        newErrors.npsBands1 =
+          "Preencha pelo menos 5 das 8 bandas com valores entre 20-100 dB na sala fonte";
       }
-      if (form.npsSimple2 === null) {
-        newErrors.npsSimple2 = 'NPS da sala de recepção é obrigatório'
-      }
     }
 
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    const validReceptionValues = form.npsBands2.filter(
+      (b) => b.value > 0 && b.value >= 20 && b.value <= 100,
+    );
+    const hasValidReceptionValues = validReceptionValues.length >= 5; // Pelo menos 5/8 bandas
+
+    if (!hasValidReceptionValues) {
+      newErrors.npsBands2 =
+        "Preencha pelo menos 5 das 8 bandas com valores entre 20-100 dB na sala de recepção";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSave = async () => {
-    setIsSaving(true)
+    setIsSaving(true);
     // Simular salvamento
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setIsSaving(false)
-    setSaved(true)
-  }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setIsSaving(false);
+    setSaved(true);
+  };
 
   const handleCalculate = async () => {
-    if (!validate()) return
+    if (!validate()) return;
 
-    setIsCalculating(true)
+    setIsCalculating(true);
+    setCalculationError(null);
+
     try {
-      await mockCalculate(testType)
-      onCalculated()
+      // Preparar dados para a API
+      const npsBands1 = testType !== "impacto_laje" ? form.npsBands1 : null;
+      const trBands60 = form.useAbsorption ? null : form.tr60Bands;
+
+      // Chamar API real
+      const response = await calculateAcoustic(
+        testType,
+        npsBands1,
+        form.npsBands2,
+        form.partitionArea,
+        form.receptionVolume || 0,
+        form.useAbsorption ? form.roomAbsorption : null,
+        trBands60,
+      );
+
+      setApiResponse(response);
+
+      // Redirecionar para página de resultados com os dados
+      const mainMetrics = extractMainMetrics(response, testType);
+
+      // Salvar dados do ensaio em localStorage para uso na página de resultados
+      const testData = {
+        projectName: form.projectName,
+        testCode: form.testCode,
+        testType: testType,
+        date: form.date,
+        observations: form.observations,
+        metrics: mainMetrics,
+        apiResponse: response,
+        timestamp: new Date().toISOString(),
+      };
+
+      localStorage.setItem("lastTestData", JSON.stringify(testData));
+
+      onCalculated();
+
+      // Redirecionar para resultados
+      router.push(`/dashboard/novo-ensaio?result=${testType}`);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erro desconhecido ao processar cálculo";
+      setCalculationError(errorMessage);
+      console.error("Erro ao calcular:", error);
     } finally {
-      setIsCalculating(false)
+      setIsCalculating(false);
     }
-  }
+  };
 
   const handleClear = () => {
-    setForm(initialState)
-    setErrors({})
-    setSaved(false)
-  }
+    setForm(initialState);
+    setErrors({});
+    setSaved(false);
+  };
 
   const getNpsLabels = () => {
     switch (testType) {
-      case 'aereo_parede':
-        return { label1: 'NPS Sala Fonte', label2: 'NPS Sala Recepção' }
-      case 'aereo_fachada':
-        return { label1: 'NPS Externo / Próximo à Fachada', label2: 'NPS Interno / Sala de Recepção' }
-      case 'impacto_laje':
-        return { label1: '', label2: 'NPS Sala Recepção' }
+      case "aereo_parede":
+        return { label1: "NPS Sala Fonte", label2: "NPS Sala Recepção" };
+      case "aereo_fachada":
+        return {
+          label1: "NPS Externo / Próximo à Fachada",
+          label2: "NPS Interno / Sala de Recepção",
+        };
+      case "impacto_laje":
+        return { label1: "", label2: "NPS Sala Recepção" };
       default:
-        return { label1: 'NPS Fonte', label2: 'NPS Recepção' }
+        return { label1: "NPS Fonte", label2: "NPS Recepção" };
     }
-  }
+  };
 
-  const npsLabels = getNpsLabels()
+  const npsLabels = getNpsLabels();
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -176,9 +255,12 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
               <Input
                 id="projectName"
                 value={form.projectName}
-                onChange={(e) => updateForm('projectName', e.target.value)}
+                onChange={(e) => updateForm("projectName", e.target.value)}
                 placeholder="Ex: Edifício Aurora"
-                className={cn("bg-input/50", errors.projectName && "border-destructive")}
+                className={cn(
+                  "bg-input/50",
+                  errors.projectName && "border-destructive",
+                )}
               />
               {errors.projectName && (
                 <p className="text-xs text-destructive">{errors.projectName}</p>
@@ -191,9 +273,12 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
               <Input
                 id="testCode"
                 value={form.testCode}
-                onChange={(e) => updateForm('testCode', e.target.value)}
+                onChange={(e) => updateForm("testCode", e.target.value)}
                 placeholder="Ex: AUR-001"
-                className={cn("bg-input/50 font-mono", errors.testCode && "border-destructive")}
+                className={cn(
+                  "bg-input/50 font-mono",
+                  errors.testCode && "border-destructive",
+                )}
               />
               {errors.testCode && (
                 <p className="text-xs text-destructive">{errors.testCode}</p>
@@ -205,7 +290,7 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
                 id="date"
                 type="date"
                 value={form.date}
-                onChange={(e) => updateForm('date', e.target.value)}
+                onChange={(e) => updateForm("date", e.target.value)}
                 className="bg-input/50"
               />
             </div>
@@ -214,7 +299,7 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
               <Textarea
                 id="observations"
                 value={form.observations}
-                onChange={(e) => updateForm('observations', e.target.value)}
+                onChange={(e) => updateForm("observations", e.target.value)}
                 placeholder="Observações técnicas sobre o ensaio..."
                 className="bg-input/50 min-h-[80px]"
               />
@@ -228,13 +313,17 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
           description="Parâmetros dimensionais e acústicos do ambiente"
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            {testType !== 'impacto_laje' && (
+            {testType !== "impacto_laje" && (
               <NumericInputWithUnit
                 id="partitionArea"
-                label={testType === 'aereo_fachada' ? 'Área da Fachada' : 'Área da Partição'}
+                label={
+                  testType === "aereo_fachada"
+                    ? "Área da Fachada"
+                    : "Área da Partição"
+                }
                 unit="m²"
                 value={form.partitionArea}
-                onChange={(v) => updateForm('partitionArea', v)}
+                onChange={(v) => updateForm("partitionArea", v)}
                 tooltip="Área do elemento separador entre os ambientes"
                 error={errors.partitionArea}
                 required
@@ -246,7 +335,7 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
               label="Volume da Sala de Recepção"
               unit="m³"
               value={form.receptionVolume}
-              onChange={(v) => updateForm('receptionVolume', v)}
+              onChange={(v) => updateForm("receptionVolume", v)}
               tooltip="Volume interno do ambiente de recepção"
               error={errors.receptionVolume}
               required
@@ -259,44 +348,49 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
               <div>
                 <p className="text-sm font-medium">Condições de absorção</p>
                 <p className="text-xs text-muted-foreground">
-                  Informe a absorção do recinto ou o TR60 (tempo de reverberação)
+                  Informe a absorção do recinto ou o TR60 (tempo de
+                  reverberação)
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Label htmlFor="useAbsorption" className="text-sm text-muted-foreground">
-                  {form.useAbsorption ? 'Usar Absorção' : 'Usar TR60'}
+                <Label
+                  htmlFor="useAbsorption"
+                  className="text-sm text-muted-foreground"
+                >
+                  {form.useAbsorption ? "Usar Absorção" : "Usar TR60"}
                 </Label>
                 <Switch
                   id="useAbsorption"
                   checked={form.useAbsorption}
-                  onCheckedChange={(v) => updateForm('useAbsorption', v)}
+                  onCheckedChange={(v) => updateForm("useAbsorption", v)}
                 />
               </div>
             </div>
-            
+
             <div className="grid gap-4 sm:grid-cols-2">
               <NumericInputWithUnit
                 id="roomAbsorption"
                 label="Absorção do Recinto"
                 unit="m²"
                 value={form.roomAbsorption}
-                onChange={(v) => updateForm('roomAbsorption', v)}
+                onChange={(v) => updateForm("roomAbsorption", v)}
                 tooltip="Absorção equivalente do ambiente de recepção em m² Sabine"
                 disabled={!form.useAbsorption}
                 min={0.1}
               />
-              <NumericInputWithUnit
-                id="tr60"
-                label="TR60"
-                unit="s"
-                value={form.tr60}
-                onChange={(v) => updateForm('tr60', v)}
-                tooltip="Tempo de reverberação T60 da sala de recepção"
-                disabled={form.useAbsorption}
-                min={0.1}
-              />
+              {!form.useAbsorption && (
+                <div>
+                  <FrequencyBandTable
+                    label="TR60 (Tempo de Reverberação)"
+                    data={form.tr60Bands}
+                    onChange={(v) => updateForm("tr60Bands", v)}
+                    unit="s"
+                    error={errors.absorption}
+                  />
+                </div>
+              )}
             </div>
-            {errors.absorption && (
+            {errors.absorption && !form.useAbsorption && (
               <p className="text-xs text-destructive mt-2 flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />
                 {errors.absorption}
@@ -304,8 +398,8 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
             )}
             <p className="text-xs text-muted-foreground mt-2">
               {form.useAbsorption
-                ? 'O TR60 poderá ser calculado pelo backend a partir da absorção informada.'
-                : 'A absorção poderá ser derivada pelo backend a partir do TR60 informado.'}
+                ? "O TR60 poderá ser calculado pelo backend a partir da absorção informada."
+                : "A absorção poderá ser derivada pelo backend a partir do TR60 informado. Informe valores por banda de frequência."}
             </p>
           </div>
         </FormSection>
@@ -315,77 +409,70 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
           title="3. Medições Sonoras"
           description="Níveis de pressão sonora medidos conforme procedimento normalizado"
         >
-          {testType === 'impacto_laje' && (
+          {testType === "impacto_laje" && (
             <div className="mb-4 p-3 rounded-md bg-info/10 border border-info/20">
               <p className="text-sm text-info flex items-center gap-2">
                 <AlertCircle className="h-4 w-4" />
-                Ruído de impacto: Neste caso não há NPS de sala fonte como no ruído aéreo.
+                Ruído de impacto: Neste caso não há NPS de sala fonte como no
+                ruído aéreo.
               </p>
             </div>
           )}
 
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-medium">Modo de entrada</p>
-            <ToggleInputMode
-              value={form.inputMode}
-              onChange={(v) => updateForm('inputMode', v)}
-            />
-          </div>
-
-          {form.inputMode === 'simple' ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {testType !== 'impacto_laje' && (
-                <NumericInputWithUnit
-                  id="npsSimple1"
-                  label={npsLabels.label1}
-                  unit="dB"
-                  value={form.npsSimple1}
-                  onChange={(v) => updateForm('npsSimple1', v)}
-                  tooltip="Nível de pressão sonora global medido"
-                  error={errors.npsSimple1}
-                  required
-                />
-              )}
-              <NumericInputWithUnit
-                id="npsSimple2"
-                label={npsLabels.label2}
-                unit="dB"
-                value={form.npsSimple2}
-                onChange={(v) => updateForm('npsSimple2', v)}
-                tooltip="Nível de pressão sonora global medido na sala de recepção"
-                error={errors.npsSimple2}
-                required
-              />
-            </div>
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
-              {testType !== 'impacto_laje' && (
-                <FrequencyBandTable
-                  label={npsLabels.label1}
-                  data={form.npsBands1}
-                  onChange={(v) => updateForm('npsBands1', v)}
-                />
-              )}
-              <FrequencyBandTable
-                label={npsLabels.label2}
-                data={form.npsBands2}
-                onChange={(v) => updateForm('npsBands2', v)}
-              />
+          {calculationError && (
+            <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+              <p className="text-sm text-destructive flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {calculationError}
+              </p>
             </div>
           )}
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {testType !== "impacto_laje" && (
+              <FrequencyBandTable
+                label={npsLabels.label1}
+                data={form.npsBands1}
+                onChange={(v) => updateForm("npsBands1", v)}
+                error={errors.npsBands1}
+              />
+            )}
+            <FrequencyBandTable
+              label={npsLabels.label2}
+              data={form.npsBands2}
+              onChange={(v) => updateForm("npsBands2", v)}
+              error={errors.npsBands2}
+            />
+          </div>
         </FormSection>
 
         {/* Resumo e Ações */}
         <FormSection title="4. Resumo para Cálculo">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <SummaryItem label="Projeto" value={form.projectName || '-'} />
-            <SummaryItem label="Código" value={form.testCode || '-'} mono />
-            <SummaryItem label="Tipo" value={config?.name || '-'} />
-            {form.partitionArea && <SummaryItem label="Área" value={`${form.partitionArea} m²`} mono />}
-            {form.receptionVolume && <SummaryItem label="Volume" value={`${form.receptionVolume} m³`} mono />}
-            {form.tr60 && <SummaryItem label="TR60" value={`${form.tr60} s`} mono />}
-            {form.roomAbsorption && <SummaryItem label="Absorção" value={`${form.roomAbsorption} m²`} mono />}
-            <SummaryItem label="Modo de entrada" value={form.inputMode === 'simple' ? 'Simplificado' : 'Por bandas'} />
+            <SummaryItem label="Projeto" value={form.projectName || "-"} />
+            <SummaryItem label="Código" value={form.testCode || "-"} mono />
+            <SummaryItem label="Tipo" value={config?.name || "-"} />
+            {form.partitionArea && (
+              <SummaryItem
+                label="Área"
+                value={`${form.partitionArea} m²`}
+                mono
+              />
+            )}
+            {form.receptionVolume && (
+              <SummaryItem
+                label="Volume"
+                value={`${form.receptionVolume} m³`}
+                mono
+              />
+            )}
+            {form.roomAbsorption && (
+              <SummaryItem
+                label="Absorção"
+                value={`${form.roomAbsorption} m²`}
+                mono
+              />
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-border">
@@ -402,19 +489,29 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              {saved ? 'Rascunho salvo' : 'Salvar rascunho'}
+              {saved ? "Rascunho salvo" : "Salvar rascunho"}
             </Button>
             <Button
               onClick={handleCalculate}
               disabled={isCalculating || isSaving}
               className="gap-2 glow-primary"
+              title={
+                isCalculating
+                  ? "Enviando para o servidor..."
+                  : "Calcular resultados"
+              }
             >
               {isCalculating ? (
-                <Spinner className="h-4 w-4" />
+                <>
+                  <Spinner className="h-4 w-4" />
+                  <span>Enviando...</span>
+                </>
               ) : (
-                <Calculator className="h-4 w-4" />
+                <>
+                  <Zap className="h-4 w-4" />
+                  <span>Calcular</span>
+                </>
               )}
-              {isCalculating ? 'Calculando...' : 'Calcular'}
             </Button>
             <Button
               variant="ghost"
@@ -427,9 +524,17 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
             </Button>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Os cálculos serão processados pelo backend Python conforme normas técnicas aplicáveis.
-          </p>
+          <div className="pt-2 space-y-2">
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+              Servidor:{" "}
+              {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Os cálculos serão processados pelo backend Python conforme normas
+              técnicas ISO 16283-1, ISO 16283-2, ISO 16283-3 e ISO 717-1/717-2.
+            </p>
+          </div>
         </FormSection>
       </div>
 
@@ -440,14 +545,29 @@ export function TestForm({ testType, onCalculated }: TestFormProps) {
         </div>
       </aside>
     </div>
-  )
+  );
 }
 
-function SummaryItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function SummaryItem({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
     <div className="px-3 py-2 rounded-md bg-muted/30">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("text-sm font-medium text-foreground", mono && "font-mono")}>{value}</p>
+      <p
+        className={cn(
+          "text-sm font-medium text-foreground",
+          mono && "font-mono",
+        )}
+      >
+        {value}
+      </p>
     </div>
-  )
+  );
 }

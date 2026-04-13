@@ -1,49 +1,58 @@
-'use client'
+"use client";
 
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { FREQUENCY_BANDS, FrequencyData } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FREQUENCY_BANDS, FrequencyData } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface FrequencyBandTableProps {
-  label: string
-  data: FrequencyData[]
-  onChange: (data: FrequencyData[]) => void
-  unit?: string
-  error?: string
-  disabled?: boolean
+  label: string;
+  data: FrequencyData[];
+  onChange: (data: FrequencyData[]) => void;
+  unit?: string;
+  error?: string;
+  disabled?: boolean;
 }
 
 export function FrequencyBandTable({
   label,
   data,
   onChange,
-  unit = 'dB',
+  unit = "dB",
   error,
   disabled = false,
 }: FrequencyBandTableProps) {
   const handleValueChange = (frequency: number, value: string) => {
+    // Normaliza vírgula para ponto (para locales que usam vírgula como separador decimal)
+    const normalizedValue = value.replace(",", ".");
+    const numValue =
+      normalizedValue === "" ? 0 : parseFloat(normalizedValue) || 0;
+
     const newData = data.map((item) => {
       if (item.frequency === frequency) {
         return {
           ...item,
-          value: value === '' ? 0 : parseFloat(value) || 0
-        }
+          value: numValue,
+        };
       }
-      return item
-    })
-    onChange(newData)
-  }
+      return item;
+    });
+    onChange(newData);
+  };
 
   // Initialize data if empty
-  const tableData = data.length > 0 ? data : FREQUENCY_BANDS.map(f => ({ frequency: f, value: 0 }))
+  const tableData =
+    data.length > 0
+      ? data
+      : FREQUENCY_BANDS.map((f) => ({ frequency: f, value: 0 }));
 
   return (
     <Card className="bg-card/30 border-border">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium">
-          {label} <span className="text-muted-foreground font-normal">({unit})</span>
+          {label}{" "}
+          <span className="text-muted-foreground font-normal">({unit})</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -65,7 +74,7 @@ export function FrequencyBandTable({
                   key={item.frequency}
                   className={cn(
                     "border-b border-border/50 last:border-0",
-                    index % 2 === 0 ? "bg-muted/10" : ""
+                    index % 2 === 0 ? "bg-muted/10" : "",
                   )}
                 >
                   <td className="py-2 px-2">
@@ -76,8 +85,10 @@ export function FrequencyBandTable({
                   <td className="py-2 px-2">
                     <Input
                       type="number"
-                      value={item.value || ''}
-                      onChange={(e) => handleValueChange(item.frequency, e.target.value)}
+                      value={item.value || ""}
+                      onChange={(e) =>
+                        handleValueChange(item.frequency, e.target.value)
+                      }
                       placeholder="0.0"
                       step="0.1"
                       disabled={disabled}
@@ -89,10 +100,8 @@ export function FrequencyBandTable({
             </tbody>
           </table>
         </div>
-        {error && (
-          <p className="text-xs text-destructive mt-2">{error}</p>
-        )}
+        {error && <p className="text-xs text-destructive mt-2">{error}</p>}
       </CardContent>
     </Card>
-  )
+  );
 }
