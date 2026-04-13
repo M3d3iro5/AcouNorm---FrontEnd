@@ -61,7 +61,10 @@ export function RecentTests() {
       const projectsWithMeasurements = await Promise.all(
         allProjects.map(async (project) => {
           try {
-            const data = await projectService.getProject(project.id, includeDrafts);
+            const data = await projectService.getProject(
+              project.id,
+              includeDrafts,
+            );
             return {
               project,
               measurements: data.measurements || [],
@@ -103,7 +106,7 @@ export function RecentTests() {
     );
 
   // Filter by type if needed
-  const displayMeasurements = 
+  const displayMeasurements =
     filterType === "drafts"
       ? allMeasurements.filter((m) => projectService.isDraft(m))
       : allMeasurements;
@@ -171,7 +174,8 @@ export function RecentTests() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base font-medium">
-            {filterType === "drafts" ? "Rascunhos" : "Ensaios Recentes"} ({displayMeasurements.length})
+            {filterType === "drafts" ? "Rascunhos" : "Ensaios Recentes"} (
+            {displayMeasurements.length})
           </CardTitle>
           <div className="flex gap-1">
             <Button
