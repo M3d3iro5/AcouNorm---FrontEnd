@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  # Backend AcouNorm - FastAPI
+  backend:
+    build:
+      context: ../AcouNorm---BackEnd
+      dockerfile: Dockerfile
+    container_name: acounorm-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=development
+    volumes:
+      - ../AcouNorm---BackEnd:/app
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    networks:
+      - acounorm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Frontend AcouNorm - Next.js
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: acounorm-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NODE_ENV=development
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - acounorm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  acounorm-network:
+    driver: bridge
+
+volumes:
+  backend-data:
+  frontend-data:
+
+# Instruções de uso:
+# docker-compose up -d          # Iniciar tudo
+# docker-compose down           # Parar tudo
+# docker-compose logs -f        # Ver logs em tempo real
+# docker-compose ps             # Ver status dos containers

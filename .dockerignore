@@ -1,0 +1,54 @@
+# Arquivos a ignorar no Docker Compose de Produção
+
+# Environment files (use variáveis do Portainer/hosting)
+.env.local
+.env
+.env.*.local
+
+# Development
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build cache
+.next
+.turbo
+dist
+build
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git
+.gitignore
+
+# Testing
+.jest
+coverage
+
+# Docker
+Dockerfile.dev
+docker-compose.yml
+docker-compose.*.yml
+!docker-compose.prod.yml
+
+# Logs
+logs
+*.log
+
+# SSL (géré pelo hosting)
+ssl/
+*.pem
+*.key
+*.crt
+
+# Cache
+.cache
+.eslintcache
